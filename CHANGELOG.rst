@@ -2,8 +2,8 @@
 Changelog for package realsense_gazebo_plugin
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.1 (2020-04-02)
+------------------
 * Fixed dependencies missing in package.xml
 * Updated maintainer and install target
 * Update README.md
