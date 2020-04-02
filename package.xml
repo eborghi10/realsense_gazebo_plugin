@@ -12,8 +12,11 @@
 
   <depend>gazebo_ros</depend>
   <depend>roscpp</depend>
+  <depend>depth_image_proc</depend>
+  <depend>image_transport</depend>
   <depend>camera_info_manager</depend>
-  <exec_depend>depth_image_proc</exec_depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
 
   <export>
     <gazebo_ros
