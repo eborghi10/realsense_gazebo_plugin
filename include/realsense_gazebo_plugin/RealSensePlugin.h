@@ -1,119 +1,65 @@
 /*
-// Copyright (c) 2016 Intel Corporation
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+ * Copyright (C) 2012 Open Source Robotics Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
 */
 
-#ifndef _GZRS_PLUGIN_HH_
-#define _GZRS_PLUGIN_HH_
-
-#include <gazebo/common/Plugin.hh>
-#include <gazebo/common/common.hh>
-#include <gazebo/physics/PhysicsTypes.hh>
-#include <gazebo/physics/physics.hh>
-#include <gazebo/rendering/DepthCamera.hh>
-#include <gazebo/sensors/sensors.hh>
-#include <sdf/sdf.hh>
+#ifndef GAZEBO_PLUGINS_DEPTHCAMERAPLUGIN_HH_
+#define GAZEBO_PLUGINS_DEPTHCAMERAPLUGIN_HH_
 
 #include <string>
-#include <memory>
+
+#include "gazebo/common/Plugin.hh"
+#include "gazebo/sensors/DepthCameraSensor.hh"
+#include "gazebo/sensors/CameraSensor.hh"
+#include "gazebo/rendering/DepthCamera.hh"
+#include "gazebo/util/system.hh"
 
 namespace gazebo
 {
-
-  #define DEPTH_CAMERA_NAME "depth"
-  #define COLOR_CAMERA_NAME "color"
-  #define IRED1_CAMERA_NAME "ired1"
-  #define IRED2_CAMERA_NAME "ired2"
-
-  /// \brief A plugin that simulates Real Sense camera streams.
-  class RealSensePlugin : public ModelPlugin
+  class GAZEBO_VISIBLE DepthCameraPlugin : public SensorPlugin
   {
-    /// \brief Constructor.
-    public: RealSensePlugin();
+    /// \brief Constructor
+    public: DepthCameraPlugin();
 
-    /// \brief Destructor.
-    public: ~RealSensePlugin();
+    /// \brief Destructor
+    public: virtual ~DepthCameraPlugin();
 
-    // Documentation Inherited.
-    public: virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
+    public: void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf);
 
-    /// \brief Callback for the World Update event.
-    public: void OnUpdate();
+    public: virtual void OnNewDepthFrame(const float *_image,
+                unsigned int _width, unsigned int _height,
+                unsigned int _depth, const std::string &_format);
 
-    /// \brief Callback that publishes a received Depth Camera Frame as an
-    /// ImageStamped
-    /// message.
-    public: virtual void OnNewDepthFrame();
+    /// \brief Update the controller
+    public: virtual void OnNewRGBPointCloud(const float *_pcd,
+                unsigned int _width, unsigned int _height,
+                unsigned int _depth, const std::string &_format);
 
-    /// \brief Callback that publishes a received Camera Frame as an
-    /// ImageStamped message.
-    public: virtual void OnNewFrame(const rendering::CameraPtr cam,
-                                    const transport::PublisherPtr pub);
+    public: virtual void OnNewImageFrame(const unsigned char *_image,
+                              unsigned int _width, unsigned int _height,
+                              unsigned int _depth, const std::string &_format);
 
-    /// \brief Pointer to the model containing the plugin.
-    protected: physics::ModelPtr rsModel;
+    protected: unsigned int width, height, depth;
+    protected: std::string format;
 
-    /// \brief Pointer to the world.
-    protected: physics::WorldPtr world;
+    protected: sensors::DepthCameraSensorPtr parentSensor;
+    protected: rendering::DepthCameraPtr depthCamera;
 
-    /// \brief Pointer to the Depth Camera Renderer.
-    protected: rendering::DepthCameraPtr depthCam;
-
-    /// \brief Pointer to the Color Camera Renderer.
-    protected: rendering::CameraPtr colorCam;
-
-    /// \brief Pointer to the Infrared Camera Renderer.
-    protected: rendering::CameraPtr ired1Cam;
-
-    /// \brief Pointer to the Infrared2 Camera Renderer.
-    protected: rendering::CameraPtr ired2Cam;
-
-    /// \brief Pointer to the transport Node.
-    protected: transport::NodePtr transportNode;
-
-    // \brief Store Real Sense depth map data.
-    protected: std::vector<uint16_t> depthMap;
-
-    /// \brief Pointer to the Depth Publisher.
-    protected: transport::PublisherPtr depthPub;
-
-    /// \brief Pointer to the Color Publisher.
-    protected: transport::PublisherPtr colorPub;
-
-    /// \brief Pointer to the Infrared Publisher.
-    protected: transport::PublisherPtr ired1Pub;
-
-    /// \brief Pointer to the Infrared2 Publisher.
-    protected: transport::PublisherPtr ired2Pub;
-
-    /// \brief Pointer to the Depth Camera callback connection.
-    protected: event::ConnectionPtr newDepthFrameConn;
-
-    /// \brief Pointer to the Depth Camera callback connection.
-    protected: event::ConnectionPtr newIred1FrameConn;
-
-    /// \brief Pointer to the Infrared Camera callback connection.
-    protected: event::ConnectionPtr newIred2FrameConn;
-
-    /// \brief Pointer to the Color Camera callback connection.
-    protected: event::ConnectionPtr newColorFrameConn;
-
-    /// \brief Pointer to the World Update event connection.
-    protected: event::ConnectionPtr updateConnection;
-
-    /// \brief String to hold the camera prefix
-    protected: std::string prefix;
+    private: event::ConnectionPtr newDepthFrameConnection;
+    private: event::ConnectionPtr newRGBPointCloudConnection;
+    private: event::ConnectionPtr newImageFrameConnection;
   };
 }
 #endif
