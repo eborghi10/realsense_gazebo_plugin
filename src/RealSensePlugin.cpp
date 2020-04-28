@@ -20,7 +20,6 @@
 #include "realsense_gazebo_plugin/RealSensePlugin.h"
 
 using namespace gazebo;
-// GZ_REGISTER_SENSOR_PLUGIN(DepthCameraPlugin)
 
 /////////////////////////////////////////////////
 DepthCameraPlugin::DepthCameraPlugin()
@@ -31,9 +30,7 @@ DepthCameraPlugin::DepthCameraPlugin()
 /////////////////////////////////////////////////
 DepthCameraPlugin::~DepthCameraPlugin()
 {
-  this->newDepthFrameConnection.reset();
   this->newRGBPointCloudConnection.reset();
-  this->newImageFrameConnection.reset();
 
   this->parentSensor.reset();
   this->depthCamera.reset();
@@ -68,11 +65,6 @@ void DepthCameraPlugin::Load(sensors::SensorPtr _sensor,
         this, std::placeholders::_1, std::placeholders::_2,
         std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
 
-  this->newImageFrameConnection = this->depthCamera->ConnectNewImageFrame(
-      std::bind(&DepthCameraPlugin::OnNewImageFrame,
-        this, std::placeholders::_1, std::placeholders::_2,
-        std::placeholders::_3, std::placeholders::_4, std::placeholders::_5));
-
   this->parentSensor->SetActive(true);
 }
 
@@ -93,13 +85,6 @@ void DepthCameraPlugin::OnNewDepthFrame(const float *_image,
   }
 
   int index =  ((_height * 0.5) * _width) + _width * 0.5;
-  printf("W[%u] H[%u] MidPoint[%d] Dist[%f] Min[%f] Max[%f]\n",
-      width, height, index, _image[index], min, max);
-
-  /*rendering::Camera::SaveFrame(_image, this->width,
-    this->height, this->depth, this->format,
-    "/tmp/depthCamera/me.jpg");
-    */
 }
 
 /////////////////////////////////////////////////
@@ -107,17 +92,4 @@ void DepthCameraPlugin::OnNewRGBPointCloud(const float * /*_pcd*/,
                 unsigned int /*_width*/, unsigned int /*_height*/,
                 unsigned int /*_depth*/, const std::string &/*_format*/)
 {
-}
-
-/////////////////////////////////////////////////
-void DepthCameraPlugin::OnNewImageFrame(const unsigned char * /*_image*/,
-                              unsigned int /*_width*/,
-                              unsigned int /*_height*/,
-                              unsigned int /*_depth*/,
-                              const std::string &/*_format*/)
-{
-  /*rendering::Camera::SaveFrame(_image, this->width,
-    this->height, this->depth, this->format,
-    "/tmp/depthCamera/me.jpg");
-    */
 }

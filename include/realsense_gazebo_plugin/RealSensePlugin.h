@@ -38,18 +38,15 @@ namespace gazebo
 
     public: void Load(sensors::SensorPtr _sensor, sdf::ElementPtr _sdf);
 
-    public: virtual void OnNewDepthFrame(const float *_image,
-                unsigned int _width, unsigned int _height,
-                unsigned int _depth, const std::string &_format);
+    /// \brief Update the controller
+    protected: virtual void OnNewDepthFrame(const float *_image,
+                    unsigned int _width, unsigned int _height,
+                    unsigned int _depth, const std::string &_format);
 
     /// \brief Update the controller
     public: virtual void OnNewRGBPointCloud(const float *_pcd,
                 unsigned int _width, unsigned int _height,
                 unsigned int _depth, const std::string &_format);
-
-    public: virtual void OnNewImageFrame(const unsigned char *_image,
-                              unsigned int _width, unsigned int _height,
-                              unsigned int _depth, const std::string &_format);
 
     protected: unsigned int width, height, depth;
     protected: std::string format;
@@ -59,7 +56,6 @@ namespace gazebo
 
     private: event::ConnectionPtr newDepthFrameConnection;
     private: event::ConnectionPtr newRGBPointCloudConnection;
-    private: event::ConnectionPtr newImageFrameConnection;
   };
 }
 #endif

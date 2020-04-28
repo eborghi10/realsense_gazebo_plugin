@@ -45,9 +45,6 @@ GZ_REGISTER_SENSOR_PLUGIN(GazeboRosDepthCamera)
 GazeboRosDepthCamera::GazeboRosDepthCamera()
 {
   this->point_cloud_connect_count_ = 0;
-  this->depth_image_connect_count_ = 0;
-  this->depth_info_connect_count_ = 0;
-  this->last_depth_image_camera_info_update_time_ = common::Time(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,28 +75,11 @@ void GazeboRosDepthCamera::Load(sensors::SensorPtr _parent, sdf::ElementPtr _sdf
   this->format_ = this->format;
   this->camera_ = this->depthCamera;
 
-  // using a different default
-  if (!_sdf->HasElement("imageTopicName"))
-    this->image_topic_name_ = "ir/image_raw";
-  if (!_sdf->HasElement("cameraInfoTopicName"))
-    this->camera_info_topic_name_ = "ir/camera_info";
-
   // point cloud stuff
   if (!_sdf->HasElement("pointCloudTopicName"))
     this->point_cloud_topic_name_ = "points";
   else
     this->point_cloud_topic_name_ = _sdf->GetElement("pointCloudTopicName")->Get<std::string>();
-
-  // depth image stuff
-  if (!_sdf->HasElement("depthImageTopicName"))
-    this->depth_image_topic_name_ = "depth/image_raw";
-  else
-    this->depth_image_topic_name_ = _sdf->GetElement("depthImageTopicName")->Get<std::string>();
-
-  if (!_sdf->HasElement("depthImageCameraInfoTopicName"))
-    this->depth_image_camera_info_topic_name_ = "depth/camera_info";
-  else
-    this->depth_image_camera_info_topic_name_ = _sdf->GetElement("depthImageCameraInfoTopicName")->Get<std::string>();
 
   if (!_sdf->HasElement("pointCloudCutoff"))
     this->point_cloud_cutoff_ = 0.4;
@@ -119,22 +99,6 @@ void GazeboRosDepthCamera::Advertise()
       boost::bind( &GazeboRosDepthCamera::PointCloudDisconnect,this),
       ros::VoidPtr(), &this->camera_queue_);
   this->point_cloud_pub_ = this->rosnode_->advertise(point_cloud_ao);
-
-  ros::AdvertiseOptions depth_image_ao =
-    ros::AdvertiseOptions::create< sensor_msgs::Image >(
-      this->depth_image_topic_name_,1,
-      boost::bind( &GazeboRosDepthCamera::DepthImageConnect,this),
-      boost::bind( &GazeboRosDepthCamera::DepthImageDisconnect,this),
-      ros::VoidPtr(), &this->camera_queue_);
-  this->depth_image_pub_ = this->rosnode_->advertise(depth_image_ao);
-
-  ros::AdvertiseOptions depth_image_camera_info_ao =
-    ros::AdvertiseOptions::create<sensor_msgs::CameraInfo>(
-        this->depth_image_camera_info_topic_name_,1,
-        boost::bind( &GazeboRosDepthCamera::DepthInfoConnect,this),
-        boost::bind( &GazeboRosDepthCamera::DepthInfoDisconnect,this),
-        ros::VoidPtr(), &this->camera_queue_);
-  this->depth_image_camera_info_pub_ = this->rosnode_->advertise(depth_image_camera_info_ao);
 }
 
 
@@ -157,33 +121,6 @@ void GazeboRosDepthCamera::PointCloudDisconnect()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Increment count
-void GazeboRosDepthCamera::DepthImageConnect()
-{
-  this->depth_image_connect_count_++;
-  this->parentSensor->SetActive(true);
-}
-////////////////////////////////////////////////////////////////////////////////
-// Decrement count
-void GazeboRosDepthCamera::DepthImageDisconnect()
-{
-  this->depth_image_connect_count_--;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Increment count
-void GazeboRosDepthCamera::DepthInfoConnect()
-{
-  this->depth_info_connect_count_++;
-}
-////////////////////////////////////////////////////////////////////////////////
-// Decrement count
-void GazeboRosDepthCamera::DepthInfoDisconnect()
-{
-  this->depth_info_connect_count_--;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // Update the controller
 void GazeboRosDepthCamera::OnNewDepthFrame(const float *_image,
     unsigned int _width, unsigned int _height, unsigned int _depth,
@@ -196,9 +133,7 @@ void GazeboRosDepthCamera::OnNewDepthFrame(const float *_image,
 
   if (this->parentSensor->IsActive())
   {
-    if (this->point_cloud_connect_count_ <= 0 &&
-        this->depth_image_connect_count_ <= 0 &&
-        (*this->image_connect_count_) <= 0)
+    if (this->point_cloud_connect_count_ <= 0)
     {
       this->parentSensor->SetActive(false);
     }
@@ -206,19 +141,14 @@ void GazeboRosDepthCamera::OnNewDepthFrame(const float *_image,
     {
       if (this->point_cloud_connect_count_ > 0)
         this->FillPointdCloud(_image);
-
-      if (this->depth_image_connect_count_ > 0)
-        this->FillDepthImage(_image);
     }
   }
   else
   {
-    if (this->point_cloud_connect_count_ > 0 ||
-        this->depth_image_connect_count_ <= 0)
+    if (this->point_cloud_connect_count_ > 0)
       // do this first so there's chance for sensor to run 1 frame after activate
       this->parentSensor->SetActive(true);
   }
-  PublishCameraInfo();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -281,37 +211,9 @@ void GazeboRosDepthCamera::OnNewRGBPointCloud(const float *_pcd,
         }
       }
 
+
       this->point_cloud_pub_.publish(this->point_cloud_msg_);
       this->lock_.unlock();
-    }
-  }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Update the controller
-void GazeboRosDepthCamera::OnNewImageFrame(const unsigned char *_image,
-    unsigned int _width, unsigned int _height, unsigned int _depth,
-    const std::string &_format)
-{
-  if (!this->initialized_ || this->height_ <=0 || this->width_ <=0)
-    return;
-
-  //ROS_ERROR_NAMED("depth_camera", "camera_ new frame %s %s",this->parentSensor_->GetName().c_str(),this->frame_name_.c_str());
-  this->sensor_update_time_ = this->parentSensor->LastMeasurementTime();
-
-  if (!this->parentSensor->IsActive())
-  {
-    if ((*this->image_connect_count_) > 0)
-      // do this first so there's chance for sensor to run 1 frame after activate
-      this->parentSensor->SetActive(true);
-  }
-  else
-  {
-    if ((*this->image_connect_count_) > 0)
-    {
-      this->PutCameraData(_image);
-      // TODO(lucasw) publish camera info with depth image
-      // this->PublishCameraInfo(sensor_update_time);
     }
   }
 }
@@ -342,28 +244,6 @@ void GazeboRosDepthCamera::FillPointdCloud(const float *_src)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Put depth image data to the interface
-void GazeboRosDepthCamera::FillDepthImage(const float *_src)
-{
-  this->lock_.lock();
-  // copy data into image
-  this->depth_image_msg_.header.frame_id = this->frame_name_;
-  this->depth_image_msg_.header.stamp.sec = this->depth_sensor_update_time_.sec;
-  this->depth_image_msg_.header.stamp.nsec = this->depth_sensor_update_time_.nsec;
-
-  ///copy from depth to depth image message
-  FillDepthImageHelper(this->depth_image_msg_,
-                 this->height,
-                 this->width,
-                 this->skip_,
-                 (void*)_src );
-
-  this->depth_image_pub_.publish(this->depth_image_msg_);
-
-  this->lock_.unlock();
-}
-
-
 // Fill depth information
 bool GazeboRosDepthCamera::FillPointCloudHelper(
     sensor_msgs::PointCloud2 &point_cloud_msg,
@@ -446,89 +326,5 @@ bool GazeboRosDepthCamera::FillPointCloudHelper(
 
   return true;
 }
-
-// Fill depth information
-bool GazeboRosDepthCamera::FillDepthImageHelper(
-    sensor_msgs::Image& image_msg,
-    uint32_t rows_arg, uint32_t cols_arg,
-    uint32_t step_arg, void* data_arg)
-{
-  image_msg.encoding = sensor_msgs::image_encodings::TYPE_32FC1;
-  image_msg.height = rows_arg;
-  image_msg.width = cols_arg;
-  image_msg.step = sizeof(float) * cols_arg;
-  image_msg.data.resize(rows_arg * cols_arg * sizeof(float));
-  image_msg.is_bigendian = 0;
-
-  const float bad_point = std::numeric_limits<float>::quiet_NaN();
-
-  float* dest = (float*)(&(image_msg.data[0]));
-  float* toCopyFrom = (float*)data_arg;
-  int index = 0;
-
-  // convert depth to point cloud
-  for (uint32_t j = 0; j < rows_arg; j++)
-  {
-    for (uint32_t i = 0; i < cols_arg; i++)
-    {
-      float depth = toCopyFrom[index++];
-
-      if (depth > this->point_cloud_cutoff_)
-      {
-        dest[i + j * cols_arg] = depth;
-      }
-      else //point in the unseeable range
-      {
-        dest[i + j * cols_arg] = bad_point;
-      }
-    }
-  }
-  return true;
-}
-
-void GazeboRosDepthCamera::PublishCameraInfo()
-{
-  ROS_DEBUG_NAMED("depth_camera", "publishing default camera info, then depth camera info");
-  GazeboRosCameraUtils::PublishCameraInfo();
-
-  if (this->depth_info_connect_count_ > 0)
-  {
-    common::Time sensor_update_time = this->parentSensor_->LastMeasurementTime();
-
-    this->sensor_update_time_ = sensor_update_time;
-    if (sensor_update_time - this->last_depth_image_camera_info_update_time_ >= this->update_period_)
-    {
-      this->PublishCameraInfo(this->depth_image_camera_info_pub_);  // , sensor_update_time);
-      this->last_depth_image_camera_info_update_time_ = sensor_update_time;
-    }
-  }
-}
-
-//@todo: publish disparity similar to openni_camera_deprecated/src/nodelets/openni_nodelet.cpp.
-/*
-#include <stereo_msgs/DisparityImage.h>
-pub_disparity_ = comm_nh.advertise<stereo_msgs::DisparityImage > ("depth/disparity", 5, subscriberChanged2, subscriberChanged2);
-void GazeboRosDepthCamera::PublishDisparityImage(const DepthImage& depth, ros::Time time)
-{
-  stereo_msgs::DisparityImagePtr disp_msg = boost::make_shared<stereo_msgs::DisparityImage > ();
-  disp_msg->header.stamp                  = time;
-  disp_msg->header.frame_id               = device_->isDepthRegistered () ? rgb_frame_id_ : depth_frame_id_;
-  disp_msg->image.header                  = disp_msg->header;
-  disp_msg->image.encoding                = sensor_msgs::image_encodings::TYPE_32FC1;
-  disp_msg->image.height                  = depth_height_;
-  disp_msg->image.width                   = depth_width_;
-  disp_msg->image.step                    = disp_msg->image.width * sizeof (float);
-  disp_msg->image.data.resize (disp_msg->image.height * disp_msg->image.step);
-  disp_msg->T = depth.getBaseline ();
-  disp_msg->f = depth.getFocalLength () * depth_width_ / depth.getWidth ();
-  /// @todo Compute these values from DepthGenerator::GetDeviceMaxDepth() and the like
-  disp_msg->min_disparity = 0.0;
-  disp_msg->max_disparity = disp_msg->T * disp_msg->f / 0.3;
-  disp_msg->delta_d = 0.125;
-  depth.fillDisparityImage (depth_width_, depth_height_, reinterpret_cast<float*>(&disp_msg->image.data[0]), disp_msg->image.step);
-  pub_disparity_.publish (disp_msg);
-}
-*/
-
 
 }
